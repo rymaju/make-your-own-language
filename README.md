@@ -4,7 +4,7 @@
 
 The code in this repository is the most up to date version of my toy imperative language. The goal of this language is to demonstrate how to implement imperative language features using Racket to build our language.
 
-For a full tutorial [click here]("tutorial.md")!
+For a full tutorial [click here](tutorial.md)!
 
 
 #### `Main.rkt`
