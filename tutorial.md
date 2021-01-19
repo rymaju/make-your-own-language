@@ -128,7 +128,7 @@ statement: ...
 ```
 
 `parser-test.rkt`
-```
+```rkt
 #lang br
 (require "parser.rkt"
          "tokenizer.rkt"
@@ -144,7 +144,7 @@ HERE
 ```
 
 `test.rkt`
-```
+```rkt
 #lang reader "reader.rkt"
 
 ```
@@ -313,7 +313,7 @@ Lets check to make sure our tokenizer and parser are correct.
 
 
 `parser-test.rkt`
-```
+```rkt
 #lang br
 (require "parser.rkt"
          "tokenizer.rkt"
@@ -368,7 +368,7 @@ Next we need to expand this AST into a real Racket program. We take in the above
 
 (define-macro (expression VAL) #'VAL)
 
-(provide program statement)
+(provide program statement expression)
 ```
 
 In our case, the only macro that does anything is the `program` macro, which starts a `(begin STATEMENT ... (void))`.
@@ -426,11 +426,203 @@ true; // the boolean true
 
 We arent displaying any of the values (we ended our `begin` with `void` remember?) and we arent printing anything either.
 
-This is quite a boring programming language.
-
-Lets add in something more fun: assignment and variables.
+But notice that if you forget a semicolon or write gibberish and run the code, it should panic and yell at you.
 
 
 ## Assignment & Variables
 
-... coming soon ...
+Our goal for this section is to create a language that looks like:
+
+```c
+def x = 5; // initalization
+x = 42 // mutation
+```
+
+This is actually pretty easy to add into our existing language.
+
+In general when adding features we start at our tokenizer, move up to the parser, test to make sure our AST makes sense, then write the macros to expand our AST, and then test the final results in `test.rkt`.
+
+---
+
+`tokenizer.rkt`
+```rkt
+#lang br/quicklang
+(require brag/support)
+
+
+(define-lex-abbrev digits (:+ (char-set "0123456789")))
+(define-lex-abbrev booleans (:or "true" "false"))
+(define-lex-abbrev reserved-keywords (:or "def" "="))
+(define-lex-abbrev id-chars (:seq alphabetic (:* (:or alphabetic numeric (char-set "-_=?/!@#$%^&*+-<>~")))))
+
+(define (make-tokenizer port)
+  (define (next-token)
+    (define my-lexer
+      (lexer-srcloc
+        [whitespace (token lexeme #:skip? #t)]
+        [(from/to "//" "\n") (next-token)]
+        [(from/to "/*" "*/") (next-token)]
+        [reserved-keywords (token lexeme lexeme)]
+        [id-chars (token 'SYMBOL (string->symbol lexeme))]
+        [(from/to "\"" "\"")
+            (token 'STRING
+                (substring lexeme
+                            1 (sub1 (string-length lexeme))))]
+       [booleans (token 'BOOLEAN (string=? "true" lexeme))]
+       [digits (token 'INTEGER (string->number lexeme))]
+       [(:or (:seq (:? digits) "." digits)
+             (:seq digits "."))
+        (token 'DECIMAL (string->number lexeme))]))
+    (my-lexer port))  
+  next-token)
+
+(provide make-tokenizer)
+```
+
+Adding a set of reserved keywords rather than dealing with them as individual cases will scale better. Once we have dozens of keywords in the language we will be glad we dont handle each one as its own branch of the lexer. Note that we set the type of the `reserved-keyword` token to `lexeme`. This means we can refer to the token as its string representation in our parser.
+
+We also add the ability to parse any symbols that arent keywords. Valid identifiers (symbols, variables, etc.) start with an alphabetic character, then can be almost any printable character. We deliberately exclude symbols like `.`, `,`, `;`, `{`, `(`, etc.
+
+Ideally we would like any valid identifier in Racket to also be valid in our language.
+
+`parser.rkt`
+```rkt
+#lang brag
+
+program: statement*
+
+statement: expression /";"
+
+define-and-assign: /"def" SYMBOL /"=" expression
+
+assign: SYMBOL /"=" expression
+
+expression: SYMBOL
+          | INTEGER
+          | DECIMAL
+          | BOOLEAN
+          | STRING
+
+```
+
+Now that we have identifiers in our language we can insert them into our template literals. Since our identifiers are valid Racket identifiers, they should function as identifiers when we add them to our Racket program.
+
+You can go ahead and test this in `parser-test.rkt` if you want to see what the AST looks like.
+
+`expander.rkt`
+```rkt
+#lang br/quicklang
+
+(define-macro (imp-mb PARSE-TREE)
+  #'(#%module-begin
+     PARSE-TREE))
+
+(provide (rename-out [imp-mb #%module-begin]))
+
+(define-macro (program STATEMENT ...) #'(begin STATEMENT ... (void)))
+
+(define-macro (statement CONTENTS) #'CONTENTS)
+
+(define-macro (expression VAL) #'VAL)
+
+(define-macro (define-and-assign ID EXPR) #'(define ID EXPR))
+
+(define-macro (assign ID EXPR) #'(set! ID EXPR))
+
+(provide program statement expression define-and-assign assign)
+```
+
+Lets go back to `test.rkt` and see if everything works.
+
+
+`test.rkt`
+```c
+#lang reader "reader.rkt"
+/*
+This is a multi line comment!
+*/
+
+123.456; // an expression for the decimal 123.456
+"this is a string"; // an expression for the string "this is a string"
+true; // the boolean true
+
+def x = 5;
+def y = 42;
+y = "Mutatis mutandis";
+```
+
+Now if we go down to the interactions window and ask for the value of `x` and `y`:
+
+```rkt
+> x
+5
+> y
+"Mutatis mutandis"
+```
+
+It works! :tada:
+
+---
+
+#### Aside: On Walruses
+
+
+>  I don’t care how much you know about continuations and closures and exception handling: if you can’t explain why `while (*s++ = *t++);` copies a string, or if that isn’t the most natural thing in the world to you, well, you’re programming based on superstition, as far as I’m concerned: a medical doctor who doesn’t know basic anatomy, passing out prescriptions based on what the pharma sales babe said would work.<br/><br/> &mdash; Joel Spolsky "Advice for Computer Science College Students"
+
+As you might have already noticed, our `x = 5` does not behave the way it might in C. Since we used `set!`, our assignment doesnt evaluate to `5`, as we might expect.
+
+Maybe this is a good thing! But perhaps we do want to include that functionality as another operator?
+
+Introducing the walrus: `x := 5`, which both mutates and evaluates to the value being assigned.
+
+Lets give this a shot. We would start by introducing `":="` as a keyword...
+
+`tokenizer.rkt`
+```rkt
+...
+(define-lex-abbrev reserved-keywords (:or "def" "=" ":="))
+...
+```
+
+Then we would add it to our parser, perhaps like so...
+
+`parser.rkt`
+```rkt
+...
+walrus-assign: SYMBOL /"=" expression
+
+expression: SYMBOL
+          | INTEGER
+          | DECIMAL
+          | BOOLEAN
+          | STRING
+          | walrus-assign
+...
+```
+
+And expand it. We can use `let` to rewrite into a series of instructions...
+
+`expander.rkt`
+```rkt
+...
+(define-macro (walrus-assign ID VAL)
+    #'(let () (set! ID VAL) VAL))
+...
+(provide ... walrus-assign)
+```
+
+`test.rkt`
+```c
+def x = 5; def y = 6;
+x = y := 42
+```
+```rkt
+> x
+42
+> y
+42
+```
+
+You can probably imagine how we might support `def x := 5`.
+
+###
