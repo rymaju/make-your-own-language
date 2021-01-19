@@ -567,7 +567,7 @@ It works! :tada:
 #### Aside: On Walruses
 
 
->  I don’t care how much you know about continuations and closures and exception handling: if you can’t explain why `while (*s++ = *t++);` copies a string, or if that isn’t the most natural thing in the world to you, well, you’re programming based on superstition, as far as I’m concerned: a medical doctor who doesn’t know basic anatomy, passing out prescriptions based on what the pharma sales babe said would work.<br/><br/> &mdash; Joel Spolsky "Advice for Computer Science College Students"
+>  I don’t care how much you know about continuations and closures and exception handling: if you can’t explain why <br/><br/>`while (*s++ = *t++);`<br/><br/> copies a string, or if that isn’t the most natural thing in the world to you, well, you’re programming based on superstition, as far as I’m concerned: a medical doctor who doesn’t know basic anatomy, passing out prescriptions based on what the pharma sales babe said would work.<br/><br/> &mdash; Joel Spolsky "Advice for Computer Science College Students"
 
 As you might have already noticed, our `x = 5` does not behave the way it might in C. Since we used `set!`, our assignment doesnt evaluate to `5`, as we might expect.
 
