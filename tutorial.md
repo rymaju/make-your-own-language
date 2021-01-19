@@ -5,7 +5,7 @@ This is a work in progress.
 
 - [Setup](#setup)
 - [Comments & Basic Expressions](#comments-&-basic-expressions)
-- Variables & Assignment
+- [Variables & Assignment](#assignment-&-variables)
 - Functions & Scope
 - If Statements
 - Boolean Operators
